@@ -910,6 +910,62 @@ class StockDeductionController extends Controller
         });
     }
 
+    /**
+     * POST /stock-deductions/{id}/generate-print-token
+     * สร้าง/รีเฟรช PDA token สำหรับปริ้น (24 ชม.) — เฉพาะสถานะที่ยังไม่เสร็จ
+     */
+    public function generatePrintToken(StockDeduction $stockDeduction): JsonResponse
+    {
+        // ถ้าเสร็จแล้ว / ยกเลิก → ไม่ต้องสร้าง token
+        if (in_array($stockDeduction->status, ['APPROVED', 'CANCELLED'])) {
+            return response()->json([
+                'success'   => true,
+                'pda_token' => null,
+                'message'   => 'เอกสารนี้ไม่ต้องสแกนแล้ว',
+            ]);
+        }
+
+        // ถ้ามี token อยู่แล้วและยังไม่หมดอายุ → ใช้ตัวเดิมแต่ต่ออายุ 24 ชม.
+        if ($stockDeduction->pda_token) {
+            $existingToken = PdaToken::where('token', $stockDeduction->pda_token)->first();
+            if ($existingToken) {
+                $newExpiry = now()->addHours(24);
+                $existingToken->update(['expires_at' => $newExpiry]);
+                return response()->json([
+                    'success'    => true,
+                    'pda_token'  => $stockDeduction->pda_token,
+                    'expires_at' => $newExpiry->toIso8601String(),
+                    'message'    => 'ต่ออายุ Token 24 ชม.',
+                ]);
+            }
+        }
+
+        // สร้าง token ใหม่
+        $tokenStr  = Str::random(32);
+        $expiresAt = now()->addHours(24);
+
+        PdaToken::create([
+            'token'      => $tokenStr,
+            'name'       => 'ปริ้น ตัดสต๊อก ' . $stockDeduction->code,
+            'created_by' => auth()->id(),
+            'expires_at' => $expiresAt,
+        ]);
+
+        $stockDeduction->update(['pda_token' => $tokenStr]);
+
+        // ถ้ายังเป็น DRAFT → เปลี่ยนเป็น PENDING ด้วย
+        if ($stockDeduction->status === 'DRAFT' && $stockDeduction->lines()->count() > 0) {
+            $stockDeduction->update(['status' => 'PENDING']);
+        }
+
+        return response()->json([
+            'success'    => true,
+            'pda_token'  => $tokenStr,
+            'expires_at' => $expiresAt->toIso8601String(),
+            'message'    => 'สร้าง Token สำเร็จ (24 ชม.)',
+        ]);
+    }
+
     /* ── Private helpers ── */
 
     private function resolvePdaToken(Request $request): ?PdaToken

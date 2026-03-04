@@ -249,6 +249,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('/stock-deductions/{stockDeduction}/cancel', [StockDeductionController::class, 'cancel']);
         Route::post('/stock-deductions/{stockDeduction}/scan', [StockDeductionController::class, 'adminScan']);
         Route::delete('/stock-deductions/{stockDeduction}/scans/{scanId}', [StockDeductionController::class, 'adminDeleteScan']);
+        Route::post('/stock-deductions/{stockDeduction}/generate-print-token', [StockDeductionController::class, 'generatePrintToken']);
     });
 
     // ── Claims (เคลมสินค้า) ──────────────────────────────
