@@ -17,6 +17,7 @@ class StockDeduction extends Model
         'type',
         'status',
         'customer_name',
+        'shipping_address',
         'reference_doc',
         'reason',
         'note',

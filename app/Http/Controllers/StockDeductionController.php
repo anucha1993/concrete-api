@@ -101,6 +101,7 @@ class StockDeductionController extends Controller
         $request->validate([
             'type'          => 'required|in:SOLD,LOST,DAMAGED,OTHER',
             'customer_name' => 'nullable|string|max:255',
+            'shipping_address' => 'nullable|string|max:1000',
             'reference_doc' => 'nullable|string|max:255',
             'reason'        => 'nullable|string|max:1000',
             'note'          => 'nullable|string|max:1000',
@@ -142,14 +143,15 @@ class StockDeductionController extends Controller
 
         return DB::transaction(function () use ($request) {
             $deduction = StockDeduction::create([
-                'code'          => StockDeduction::generateCode(),
-                'type'          => $request->type,
-                'status'        => 'DRAFT',
-                'customer_name' => $request->customer_name,
-                'reference_doc' => $request->reference_doc,
-                'reason'        => $request->reason,
-                'note'          => $request->note,
-                'created_by'    => $request->user()->id,
+                'code'             => StockDeduction::generateCode(),
+                'type'             => $request->type,
+                'status'           => 'DRAFT',
+                'customer_name'    => $request->customer_name,
+                'shipping_address' => $request->shipping_address,
+                'reference_doc'    => $request->reference_doc,
+                'reason'           => $request->reason,
+                'note'             => $request->note,
+                'created_by'       => $request->user()->id,
             ]);
 
             foreach ($request->lines as $line) {
@@ -181,6 +183,7 @@ class StockDeductionController extends Controller
         $request->validate([
             'type'          => 'sometimes|in:SOLD,LOST,DAMAGED,OTHER',
             'customer_name' => 'nullable|string|max:255',
+            'shipping_address' => 'nullable|string|max:1000',
             'reference_doc' => 'nullable|string|max:255',
             'reason'        => 'nullable|string|max:1000',
             'note'          => 'nullable|string|max:1000',
@@ -224,7 +227,7 @@ class StockDeductionController extends Controller
         }
 
         return DB::transaction(function () use ($request, $stockDeduction) {
-            $stockDeduction->update($request->only(['type', 'customer_name', 'reference_doc', 'reason', 'note']));
+            $stockDeduction->update($request->only(['type', 'customer_name', 'shipping_address', 'reference_doc', 'reason', 'note']));
 
             if ($request->has('lines')) {
                 if ($stockDeduction->status === 'DRAFT') {
