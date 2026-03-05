@@ -57,6 +57,10 @@ class StockDeductionController extends Controller
                 'per_page'     => $items->perPage(),
                 'total'        => $items->total(),
             ],
+            'status_counts' => StockDeduction::query()
+                ->selectRaw("status, count(*) as count")
+                ->groupBy('status')
+                ->pluck('count', 'status'),
         ]);
     }
 
@@ -68,7 +72,7 @@ class StockDeductionController extends Controller
         $stockDeduction->load([
             'creator:id,name',
             'approver:id,name',
-            'lines.product:id,product_code,name,counting_unit',
+            'lines.product:id,product_code,name,counting_unit,length,thickness,width',
             'scans.inventory:id,serial_number,status,condition,location_id',
             'scans.inventory.location:id,name,code',
             'scans.inventory.product:id,product_code,name',
@@ -528,12 +532,7 @@ class StockDeductionController extends Controller
                 ], 422);
             }
 
-            if ($line->scanned_qty >= $line->quantity) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "สินค้า {$inv->product?->name} สแกนครบจำนวนแล้ว ({$line->scanned_qty}/{$line->quantity})",
-                ], 422);
-            }
+            $isOverQuantity = $line->scanned_qty >= $line->quantity;
 
             $now = now();
 
@@ -559,16 +558,21 @@ class StockDeductionController extends Controller
                 $stockDeduction->update(['status' => 'COMPLETED']);
             }
 
+            $warningMsg = $isOverQuantity
+                ? "⚠️ สแกนเกินจำนวน! {$inv->product?->name} ({$line->scanned_qty}/{$line->quantity})"
+                : 'สแกนสำเร็จ';
+
             return response()->json([
                 'success' => true,
-                'message' => 'สแกนสำเร็จ',
+                'message' => $warningMsg,
                 'data'    => [
-                    'serial_number'  => $serial,
-                    'product_name'   => $inv->product?->name,
-                    'product_code'   => $inv->product?->product_code,
-                    'condition'      => $inv->condition ?? 'GOOD',
-                    'line_progress'  => ($line->scanned_qty) . '/' . $line->quantity,
-                    'all_fulfilled'  => $allFulfilled,
+                    'serial_number'    => $serial,
+                    'product_name'     => $inv->product?->name,
+                    'product_code'     => $inv->product?->product_code,
+                    'condition'        => $inv->condition ?? 'GOOD',
+                    'line_progress'    => ($line->scanned_qty) . '/' . $line->quantity,
+                    'all_fulfilled'    => $allFulfilled,
+                    'is_over_quantity' => $isOverQuantity,
                 ],
             ]);
         });
@@ -798,18 +802,7 @@ class StockDeductionController extends Controller
                 ], 422);
             }
 
-            if ($line->scanned_qty >= $line->quantity) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "สินค้า {$inv->product?->name} สแกนครบจำนวนแล้ว ({$line->scanned_qty}/{$line->quantity})",
-                    'status'  => 'LINE_FULFILLED',
-                    'data'    => [
-                        'serial_number' => $serial,
-                        'product_name'  => $inv->product?->name,
-                        'product_code'  => $inv->product?->product_code,
-                    ],
-                ], 422);
-            }
+            $isOverQuantity = $line->scanned_qty >= $line->quantity;
 
             $now = now();
 
@@ -838,17 +831,22 @@ class StockDeductionController extends Controller
                 $deduction->update(['status' => 'COMPLETED']);
             }
 
+            $warningMsg = $isOverQuantity
+                ? "⚠️ สแกนเกินจำนวน! {$inv->product?->name} ({$line->scanned_qty}/{$line->quantity})"
+                : 'สแกนสำเร็จ';
+
             return response()->json([
                 'success' => true,
-                'message' => 'สแกนสำเร็จ',
+                'message' => $warningMsg,
                 'status'  => $allFulfilled ? 'COMPLETED' : 'OK',
                 'data'    => [
-                    'serial_number'  => $serial,
-                    'product_name'   => $inv->product?->name,
-                    'product_code'   => $inv->product?->product_code,
-                    'condition'      => $inv->condition ?? 'GOOD',
-                    'line_progress'  => ($line->scanned_qty) . '/' . $line->quantity,
-                    'all_fulfilled'  => $allFulfilled,
+                    'serial_number'    => $serial,
+                    'product_name'     => $inv->product?->name,
+                    'product_code'     => $inv->product?->product_code,
+                    'condition'        => $inv->condition ?? 'GOOD',
+                    'line_progress'    => ($line->scanned_qty) . '/' . $line->quantity,
+                    'all_fulfilled'    => $allFulfilled,
+                    'is_over_quantity' => $isOverQuantity,
                 ],
             ]);
         });

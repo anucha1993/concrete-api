@@ -67,7 +67,7 @@ class LabelController extends Controller
     {
         $po = \App\Models\ProductionOrder::findOrFail($id);
 
-        $query = Inventory::with(['product:id,product_code,name,length,length_unit,thickness,thickness_unit,width', 'location:id,name,code'])
+        $query = Inventory::with(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width', 'product.category:id,name', 'location:id,name,code'])
             ->where('production_order_id', $po->id);
 
         if ($request->filled('search')) {
@@ -183,7 +183,7 @@ class LabelController extends Controller
      */
     public function printable(Request $request): JsonResponse
     {
-        $query = Inventory::with(['product:id,product_code,name,length,length_unit,thickness,thickness_unit,width', 'location:id,name,code'])
+        $query = Inventory::with(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width', 'product.category:id,name', 'location:id,name,code'])
             ->where('label_print_count', 0);
 
         if ($request->filled('production_order_id')) {
@@ -290,7 +290,7 @@ class LabelController extends Controller
                 'success'      => true,
                 'message'      => 'ปริ้น Label สำเร็จ ' . count($logs) . ' รายการ',
                 'printed_count' => count($logs),
-                'data'         => $inventories->load('product:id,product_code,name,length,length_unit,thickness,thickness_unit,width'),
+                'data'         => $inventories->load(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width', 'product.category:id,name']),
             ]);
         });
     }
@@ -333,7 +333,7 @@ class LabelController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'ยืนยันติด Label สำเร็จ — รอรับเข้าคลังจากใบสั่งผลิต',
-            'data'    => $inv->load(['product:id,product_code,name,length,length_unit,thickness,thickness_unit,width', 'location:id,name,code']),
+            'data'    => $inv->load(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width', 'product.category:id,name', 'location:id,name,code']),
         ]);
     }
 
@@ -450,7 +450,8 @@ class LabelController extends Controller
     {
         $query = LabelPrintLog::with([
             'inventory:id,serial_number,product_id',
-            'inventory.product:id,product_code,name,length,length_unit,thickness,thickness_unit,width',
+            'inventory.product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width',
+            'inventory.product.category:id,name',
             'printer:id,name',
         ]);
 
@@ -565,7 +566,8 @@ class LabelController extends Controller
             'requester:id,name',
             'approver:id,name',
             'inventories:inventories.id,serial_number,product_id',
-            'inventories.product:id,product_code,name,length,length_unit,thickness,thickness_unit,width',
+            'inventories.product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width',
+            'inventories.product.category:id,name',
             'productionOrder:id,order_number',
         ]);
 
@@ -701,7 +703,7 @@ class LabelController extends Controller
                 'success'       => true,
                 'message'       => 'ปริ้นซ้ำสำเร็จ ' . $inventories->count() . ' รายการ',
                 'printed_count' => $inventories->count(),
-                'data'          => $inventories->load('product:id,product_code,name,length,length_unit,thickness,thickness_unit,width'),
+                'data'          => $inventories->load(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width', 'product.category:id,name']),
             ]);
         });
     }
