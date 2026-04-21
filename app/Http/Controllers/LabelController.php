@@ -67,7 +67,7 @@ class LabelController extends Controller
     {
         $po = \App\Models\ProductionOrder::findOrFail($id);
 
-        $query = Inventory::with(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width', 'product.category:id,name', 'location:id,name,code'])
+        $query = Inventory::with(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width,steel_type', 'product.category:id,name', 'location:id,name,code'])
             ->where('production_order_id', $po->id);
 
         if ($request->filled('search')) {
@@ -183,7 +183,7 @@ class LabelController extends Controller
      */
     public function printable(Request $request): JsonResponse
     {
-        $query = Inventory::with(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width', 'product.category:id,name', 'location:id,name,code'])
+        $query = Inventory::with(['product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width,steel_type', 'product.category:id,name', 'location:id,name,code'])
             ->where('label_print_count', 0);
 
         if ($request->filled('production_order_id')) {
