@@ -280,6 +280,55 @@ class StockCountController extends Controller
     }
 
     /**
+     * Bulk resolve multiple missing serials at once (Mass Update).
+     * Applies the same action (WRITE_OFF / KEEP) to every selected inventory.
+     */
+    public function resolveSerialsBulk(Request $request, StockCount $stockCount): JsonResponse
+    {
+        if ($stockCount->status !== 'IN_PROGRESS') {
+            return response()->json(['success' => false, 'message' => 'รอบนับต้องอยู่ในสถานะ กำลังนับ'], 422);
+        }
+
+        $request->validate([
+            'inventory_ids'   => 'required|array|min:1',
+            'inventory_ids.*' => 'integer',
+            'action'          => 'required|in:WRITE_OFF,KEEP',
+        ]);
+
+        $invs = Inventory::whereIn('id', $request->inventory_ids)->get();
+        if ($invs->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'ไม่พบ inventory ที่เลือก'], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($invs as $inv) {
+                StockCountSerialResolution::updateOrCreate(
+                    [
+                        'stock_count_id' => $stockCount->id,
+                        'inventory_id'   => $inv->id,
+                    ],
+                    [
+                        'serial_number' => $inv->serial_number,
+                        'product_id'    => $inv->product_id,
+                        'resolution'    => $request->action,
+                    ]
+                );
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'บันทึกไม่สำเร็จ: ' . $e->getMessage()], 500);
+        }
+
+        $label = $request->action === 'WRITE_OFF' ? 'ตัดสต๊อก' : 'คงไว้';
+        return response()->json([
+            'success' => true,
+            'message' => "กำหนดแล้ว {$invs->count()} serial: {$label}",
+        ]);
+    }
+
+    /**
      * Resolve an unexpected scan: IMPORT or IGNORE.
      */
     public function resolveScan(Request $request, StockCount $stockCount): JsonResponse
