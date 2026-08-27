@@ -66,10 +66,27 @@ class ProductController extends Controller
             ]);
         }
 
-        // Sorting
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortDir = $request->input('sort_dir', 'desc');
-        $query->orderBy($sortBy, $sortDir);
+        // Sorting (supports multiple columns via comma-separated sort_by/sort_dir, whitelisted)
+        $sortable = ['product_code', 'name', 'length', 'steel_type', 'thickness', 'width', 'stock_min', 'stock_max', 'created_at'];
+        $sortColumns = array_values(array_filter(
+            explode(',', (string) $request->input('sort_by', 'created_at')),
+            fn ($v) => $v !== ''
+        ));
+        $sortDirs = explode(',', (string) $request->input('sort_dir', 'desc'));
+
+        $applied = false;
+        foreach ($sortColumns as $i => $col) {
+            if (!in_array($col, $sortable, true)) {
+                continue;
+            }
+            $dir = strtolower($sortDirs[$i] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+            $query->orderBy($col, $dir);
+            $applied = true;
+        }
+        if (!$applied) {
+            $query->orderBy('created_at', 'desc');
+        }
+        $query->orderBy('id', 'asc'); // stable tiebreaker
 
         // Pagination
         $perPage = $request->input('per_page', 15);

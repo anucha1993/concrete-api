@@ -231,6 +231,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('/stock-counts/{stockCount}/cancel', [StockCountController::class, 'cancel']);
         Route::post('/stock-counts/{stockCount}/resolve-serial', [StockCountController::class, 'resolveSerial']);
         Route::post('/stock-counts/{stockCount}/resolve-scan', [StockCountController::class, 'resolveScan']);
+        Route::post('/stock-counts/{stockCount}/resolve-scans-bulk', [StockCountController::class, 'resolveScansBulk']);
     });
 
     // ── Stock Deductions (ตัดสต๊อก) ──────────────────────

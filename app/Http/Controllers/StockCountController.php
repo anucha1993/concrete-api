@@ -341,6 +341,77 @@ class StockCountController extends Controller
     }
 
     /**
+     * Bulk resolve multiple unexpected scans at once (Mass Update).
+     * Applies the same action (and product/location for IMPORT of serials
+     * not in system) to every selected scan.
+     */
+    public function resolveScansBulk(Request $request, StockCount $stockCount): JsonResponse
+    {
+        if ($stockCount->status !== 'IN_PROGRESS') {
+            return response()->json(['success' => false, 'message' => 'รอบนับต้องอยู่ในสถานะ กำลังนับ'], 422);
+        }
+
+        $request->validate([
+            'scan_ids'    => 'required|array|min:1',
+            'scan_ids.*'  => 'integer',
+            'action'      => 'required|in:IMPORT,IGNORE',
+            'product_id'  => 'nullable|integer|exists:products,id',
+            'location_id' => 'nullable|integer|exists:locations,id',
+        ]);
+
+        $scans = StockCountScan::where('stock_count_id', $stockCount->id)
+            ->whereIn('id', $request->scan_ids)
+            ->where('is_expected', false)
+            ->where('is_duplicate', false)
+            ->get();
+
+        if ($scans->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'ไม่พบรายการสแกนที่เลือก'], 404);
+        }
+
+        // If any selected serial is not in system, IMPORT requires product + location
+        if ($request->action === 'IMPORT') {
+            $needsProductLocation = $scans->contains(fn ($s) => !$s->inventory_id);
+            if ($needsProductLocation && (!$request->product_id || !$request->location_id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ต้องระบุสินค้าและคลังสำหรับการนำเข้าสต๊อก',
+                ], 422);
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($scans as $scan) {
+                if ($request->action === 'IMPORT' && !$scan->inventory_id) {
+                    // Serial not in system — attach product + location for later import
+                    $scan->update([
+                        'resolution'             => 'IMPORT',
+                        'resolution_product_id'  => $request->product_id,
+                        'resolution_location_id' => $request->location_id,
+                    ]);
+                } else {
+                    $scan->update([
+                        'resolution'             => $request->action,
+                        'resolution_product_id'  => null,
+                        'resolution_location_id' => null,
+                    ]);
+                }
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'บันทึกไม่สำเร็จ: ' . $e->getMessage()], 500);
+        }
+
+        $label = $request->action === 'IMPORT' ? 'นำเข้าสต๊อก' : 'ไม่นำเข้า';
+        return response()->json([
+            'success' => true,
+            'message' => "กำหนดแล้ว {$scans->count()} รายการ: {$label}",
+        ]);
+    }
+
+    /**
      * Complete counting — calculate differences.
      * Requires all discrepancies to be resolved first.
      */
