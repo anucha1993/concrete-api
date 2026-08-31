@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Category;
+use App\Models\Inventory;
 use App\Models\SerialCounter;
 use Illuminate\Support\Facades\DB;
 
@@ -50,7 +51,14 @@ class SerialNumberService
             }
 
             $serials   = [];
-            $startFrom = $counter->last_number + 1;
+
+            // Self-heal: some inventories may have been inserted bypassing this counter
+            // (e.g. stock-count IMPORT sets serials with no PO). Start from the true max
+            // used serial so newly generated ones never collide with existing rows.
+            $maxSerial = Inventory::where('serial_number', 'like', $prefix . '-%')->max('serial_number');
+            $maxUsed   = $maxSerial ? (int) substr($maxSerial, strlen($prefix) + 1) : 0;
+
+            $startFrom = max($counter->last_number, $maxUsed) + 1;
 
             for ($i = 0; $i < $count; $i++) {
                 $num       = $startFrom + $i;
