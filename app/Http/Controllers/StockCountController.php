@@ -636,6 +636,9 @@ class StockCountController extends Controller
             // Mark matched items as MATCHED
             $stockCount->items()->where('difference', 0)->update(['resolution' => 'MATCHED']);
 
+            // Surplus items (difference > 0) — resolved via scan-level IMPORT/IGNORE below
+            $stockCount->items()->where('difference', '>', 0)->update(['resolution' => 'ADJUSTED']);
+
             // 2) Handle IMPORT scans (create new inventory)
             $importScans = $stockCount->scans()
                 ->where('is_expected', false)
