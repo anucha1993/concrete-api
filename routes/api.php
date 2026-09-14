@@ -236,22 +236,25 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     });
 
     // ── Stock Deductions (ตัดสต๊อก) ──────────────────────
-    Route::middleware('permission:view_operations')->group(function () {
+    Route::middleware('permission:view_operations,view_stock_deductions')->group(function () {
         Route::get('/stock-deductions', [StockDeductionController::class, 'index']);
         Route::get('/stock-deductions/{stockDeduction}', [StockDeductionController::class, 'show']);
     });
 
-    Route::middleware('permission:manage_operations')->group(function () {
+    Route::middleware('permission:manage_operations,manage_stock_deductions')->group(function () {
         Route::post('/stock-deductions', [StockDeductionController::class, 'store']);
         Route::put('/stock-deductions/{stockDeduction}', [StockDeductionController::class, 'update']);
         Route::delete('/stock-deductions/{stockDeduction}', [StockDeductionController::class, 'destroy']);
         Route::post('/stock-deductions/{stockDeduction}/submit', [StockDeductionController::class, 'submit']);
         Route::post('/stock-deductions/{stockDeduction}/complete', [StockDeductionController::class, 'complete']);
-        Route::post('/stock-deductions/{stockDeduction}/approve', [StockDeductionController::class, 'approve']);
         Route::post('/stock-deductions/{stockDeduction}/cancel', [StockDeductionController::class, 'cancel']);
         Route::post('/stock-deductions/{stockDeduction}/scan', [StockDeductionController::class, 'adminScan']);
         Route::delete('/stock-deductions/{stockDeduction}/scans/{scanId}', [StockDeductionController::class, 'adminDeleteScan']);
         Route::post('/stock-deductions/{stockDeduction}/generate-print-token', [StockDeductionController::class, 'generatePrintToken']);
+    });
+
+    Route::middleware('permission:manage_operations,approve_stock_deductions')->group(function () {
+        Route::post('/stock-deductions/{stockDeduction}/approve', [StockDeductionController::class, 'approve']);
     });
 
     // ── Claims (เคลมสินค้า) ──────────────────────────────

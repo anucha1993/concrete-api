@@ -62,6 +62,14 @@ class RoleSeeder extends Seeder
                     'view_users',
                 ],
             ],
+            [
+                'name'         => 'STOCK_DEDUCTION',
+                'display_name' => 'ตัดสต๊อก',
+                'description'  => 'จัดการใบตัดสต๊อกเท่านั้น (สร้าง แก้ไข ส่งสแกน ยกเลิก) อนุมัติใบตัดสต๊อกไม่ได้',
+                'permissions'  => [
+                    'view_stock_deductions', 'manage_stock_deductions',
+                ],
+            ],
         ];
 
         foreach ($roles as $roleData) {

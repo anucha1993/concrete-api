@@ -30,6 +30,11 @@ class PermissionSeeder extends Seeder
             ['name' => 'view_operations',   'display_name' => 'ดูปฏิบัติการคลัง',     'description' => 'ดูตรวจนับ ตัดสต๊อก เคลม',                    'group' => 'operations'],
             ['name' => 'manage_operations', 'display_name' => 'จัดการปฏิบัติการคลัง', 'description' => 'สร้าง/จัดการ ตรวจนับ ตัดสต๊อก เคลม PDA Token', 'group' => 'operations'],
 
+            // Stock Deductions only (ตัดสต๊อก) — scoped narrower than *_operations
+            ['name' => 'view_stock_deductions',    'display_name' => 'ดูตัดสต๊อก',       'description' => 'ดูรายการใบตัดสต๊อกเท่านั้น',                                  'group' => 'operations'],
+            ['name' => 'manage_stock_deductions',  'display_name' => 'จัดการตัดสต๊อก',   'description' => 'สร้าง แก้ไข ลบ ส่งสแกน ยกเลิก ใบตัดสต๊อก (ไม่รวมอนุมัติ)',   'group' => 'operations'],
+            ['name' => 'approve_stock_deductions', 'display_name' => 'อนุมัติตัดสต๊อก',  'description' => 'อนุมัติใบตัดสต๊อก',                                          'group' => 'operations'],
+
             // Reports (รายงาน)
             ['name' => 'view_reports', 'display_name' => 'ดูรายงาน', 'description' => 'ดูรายงานและ Export Excel', 'group' => 'reports'],
 
