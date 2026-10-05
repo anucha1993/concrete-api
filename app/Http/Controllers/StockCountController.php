@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
+use App\Models\LabelPrintLog;
 use App\Models\PdaToken;
 use App\Models\StockCount;
 use App\Models\StockCountItem;
@@ -851,22 +852,10 @@ class StockCountController extends Controller
             ->pluck('serial_number')
             ->toArray();
 
-        $query = Inventory::whereIn('status', self::COUNTABLE_STATUSES)
+        // Load full product/location/PO fields — used for label reprint preview
+        $query = $this->scopedInventoryQuery($stockCount)
             ->whereNotIn('serial_number', $scannedSerials)
-            ->with('product:id,product_code,name');
-
-        // Apply same filters as the stock count
-        if (!empty($stockCount->filter_product_ids)) {
-            $query->whereIn('product_id', $stockCount->filter_product_ids);
-        }
-        if (!empty($stockCount->filter_category_ids)) {
-            $query->whereHas('product', fn ($q) =>
-                $q->whereIn('category_id', $stockCount->filter_category_ids)
-            );
-        }
-        if (!empty($stockCount->filter_location_ids)) {
-            $query->whereIn('location_id', $stockCount->filter_location_ids);
-        }
+            ->with(self::LABEL_RELATIONS);
 
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->product_id);
@@ -888,6 +877,109 @@ class StockCountController extends Controller
         });
 
         return response()->json($data);
+    }
+
+    /**
+     * Relations needed to render a label (same fields as LabelController::print).
+     */
+    private const LABEL_RELATIONS = [
+        'product:id,product_code,name,category_id,length,length_unit,thickness,thickness_unit,width,steel_type,side_steel_type',
+        'product.category:id,name',
+        'location:id,name',
+        'productionOrder:id,order_number',
+    ];
+
+    /**
+     * Countable inventories within this stock count's scope (product/category/location filters).
+     */
+    private function scopedInventoryQuery(StockCount $stockCount)
+    {
+        $query = Inventory::whereIn('status', self::COUNTABLE_STATUSES);
+
+        if (!empty($stockCount->filter_product_ids)) {
+            $query->whereIn('product_id', $stockCount->filter_product_ids);
+        }
+        if (!empty($stockCount->filter_category_ids)) {
+            $query->whereHas('product', fn ($q) =>
+                $q->whereIn('category_id', $stockCount->filter_category_ids)
+            );
+        }
+        if (!empty($stockCount->filter_location_ids)) {
+            $query->whereIn('location_id', $stockCount->filter_location_ids);
+        }
+
+        return $query;
+    }
+
+    /**
+     * POST /stock-counts/{stockCount}/reprint-labels
+     * Reprint labels for serials whose sticker fell off / got lost during counting.
+     * Logged as REPRINT in label_print_logs with the stock count code as reason.
+     * Body: { inventory_ids: [1,2,...], paper_size?: "50x30", reason?: "..." }
+     */
+    public function reprintLabels(Request $request, StockCount $stockCount): JsonResponse
+    {
+        $request->validate([
+            'inventory_ids'   => 'required|array|min:1',
+            'inventory_ids.*' => 'integer|exists:inventories,id',
+            'paper_size'      => 'sometimes|string|max:30',
+            'reason'          => 'nullable|string|max:255',
+        ]);
+
+        if (!in_array($stockCount->status, ['IN_PROGRESS', 'COMPLETED'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'ปริ้น Label ได้เฉพาะรอบนับที่ "กำลังนับ" หรือ "นับเสร็จ" เท่านั้น',
+            ], 422);
+        }
+
+        $paperSize = $request->input('paper_size', '50x30');
+        $reason    = "สติ๊กเกอร์หลุด/หาย — รอบนับ {$stockCount->code}"
+            . ($request->filled('reason') ? ": {$request->reason}" : '');
+        $userId    = $request->user()->id;
+        $now       = now();
+
+        return DB::transaction(function () use ($request, $stockCount, $paperSize, $reason, $userId, $now) {
+            $inventories = $this->scopedInventoryQuery($stockCount)
+                ->whereIn('id', $request->inventory_ids)
+                ->lockForUpdate()
+                ->get();
+
+            $outOfScope = collect($request->inventory_ids)->diff($inventories->pluck('id'));
+            if ($outOfScope->isNotEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'มี ' . $outOfScope->count() . ' serial ที่ไม่อยู่ในขอบเขตรอบนับนี้ หรือไม่ได้อยู่ในคลังแล้ว',
+                ], 422);
+            }
+
+            foreach ($inventories as $inv) {
+                $isReprint = $inv->label_print_count > 0;
+
+                $inv->update([
+                    'label_printed_at'  => $now,
+                    'label_printed_by'  => $userId,
+                    'label_print_count' => $inv->label_print_count + 1,
+                ]);
+
+                LabelPrintLog::create([
+                    'inventory_id'   => $inv->id,
+                    'serial_number'  => $inv->serial_number,
+                    'print_type'     => $isReprint ? 'REPRINT' : 'FIRST',
+                    'paper_size'     => $paperSize,
+                    'reprint_reason' => $isReprint ? $reason : null,
+                    'printed_by'     => $userId,
+                    'printed_at'     => $now,
+                ]);
+            }
+
+            return response()->json([
+                'success'       => true,
+                'message'       => 'ปริ้น Label ใหม่สำเร็จ ' . $inventories->count() . ' รายการ',
+                'printed_count' => $inventories->count(),
+                'data'          => $inventories->load(self::LABEL_RELATIONS),
+            ]);
+        });
     }
 
     /* ══════════════════════════════════════════════════════════════

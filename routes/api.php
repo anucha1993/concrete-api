@@ -197,8 +197,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     });
 
     // ── Label Templates (ออกแบบ Label) ────────────────────
-    Route::middleware('permission:view_production')->group(function () {
-        Route::get('/label-templates', [LabelTemplateController::class, 'index']);
+    // view_operations: stock-count page reprints lost stickers with these templates
+    Route::middleware('permission:view_production,view_operations')->group(function () {
+        Route::get('/label-templates',[LabelTemplateController::class, 'index']);
         Route::get('/label-templates/{labelTemplate}', [LabelTemplateController::class, 'show']);
     });
     Route::middleware('permission:manage_production')->group(function () {
@@ -233,6 +234,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('/stock-counts/{stockCount}/resolve-serials-bulk', [StockCountController::class, 'resolveSerialsBulk']);
         Route::post('/stock-counts/{stockCount}/resolve-scan', [StockCountController::class, 'resolveScan']);
         Route::post('/stock-counts/{stockCount}/resolve-scans-bulk', [StockCountController::class, 'resolveScansBulk']);
+        Route::post('/stock-counts/{stockCount}/reprint-labels', [StockCountController::class, 'reprintLabels']);
     });
 
     // ── Stock Deductions (ตัดสต๊อก) ──────────────────────
