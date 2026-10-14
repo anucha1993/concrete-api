@@ -21,6 +21,7 @@ class PermissionSeeder extends Seeder
             // Inventory (คลังสินค้า, แจ้งเตือน)
             ['name' => 'view_inventory',   'display_name' => 'ดูคลังสินค้า',     'description' => 'ดูสต็อก แจ้งเตือน',                  'group' => 'inventory'],
             ['name' => 'manage_inventory', 'display_name' => 'จัดการคลังสินค้า', 'description' => 'แก้ไขสถานะสินค้าคงคลัง',             'group' => 'inventory'],
+            ['name' => 'view_serial_number', 'display_name' => 'ดู S/N จริง', 'description' => 'เห็น Serial Number จริงทุกหน้า (ไม่มีสิทธิ์จะแสดงเป็น xxxx ยกเว้นใบตัดสต๊อก, PDA, ปริ้น Label)', 'group' => 'inventory'],
 
             // Production (ใบสั่งผลิต, ปริ้น Label, คำขอปริ้นซ้ำ)
             ['name' => 'view_production',   'display_name' => 'ดูใบสั่งผลิต',     'description' => 'ดูใบสั่งผลิต ปริ้น Label คำขอปริ้นซ้ำ',   'group' => 'production'],
