@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\StockDeduction;
 use App\Models\StockDeductionLine;
 use App\Models\StockDeductionScan;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -354,6 +355,12 @@ class StockDeductionController extends Controller
             $userId = $request->user()->id;
             $now    = now();
 
+            // Lock the document & re-check status — prevents double-click / concurrent approvals
+            $stockDeduction = StockDeduction::whereKey($stockDeduction->id)->lockForUpdate()->first();
+            if ($stockDeduction->status !== 'COMPLETED') {
+                return response()->json(['success' => false, 'message' => 'ใบตัดสต๊อกนี้ถูกดำเนินการไปแล้ว (สถานะปัจจุบัน: ' . StockDeduction::statusLabel($stockDeduction->status) . ')'], 422);
+            }
+
             $stockDeduction->load('scans');
 
             $targetStatus = match ($stockDeduction->type) {
@@ -378,6 +385,18 @@ class StockDeductionController extends Controller
                 $inv = Inventory::where('id', $scan->inventory_id)->lockForUpdate()->first();
 
                 if (!$inv || !in_array($inv->status, ['IN_STOCK', 'DAMAGED'])) {
+                    // Already deducted by THIS document (e.g. an earlier attempt) — count as done, not an error
+                    $deductedByThisDoc = $inv
+                        && $inv->status === $targetStatus
+                        && InventoryMovement::where('inventory_id', $inv->id)
+                            ->where('reference_type', 'stock_deductions')
+                            ->where('reference_id', $stockDeduction->id)
+                            ->exists();
+                    if ($deductedByThisDoc) {
+                        $deducted++;
+                        continue;
+                    }
+
                     $skipped[] = $scan->serial_number;
                     continue;
                 }
@@ -404,11 +423,12 @@ class StockDeductionController extends Controller
             }
 
             if (!empty($skipped)) {
+                // Throw (not return) so the transaction rolls back the serials already deducted above
                 $list = implode(', ', $skipped);
-                return response()->json([
+                throw new HttpResponseException(response()->json([
                     'success' => false,
                     'message' => "ไม่สามารถอนุมัติได้ — Serial ต่อไปนี้ไม่อยู่ในคลังแล้ว: {$list}",
-                ], 422);
+                ], 422));
             }
 
             $stockDeduction->update([
